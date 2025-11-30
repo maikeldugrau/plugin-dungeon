@@ -1,0 +1,4 @@
+name: DungeonPlugin
+version: 1.0.0
+main: com.example.dungeon.DungeonPlugin
+api-version: 1.21
