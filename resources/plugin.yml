@@ -1,1 +1,17 @@
+name: DungeonPlugin
+version: 1.0.0
+main: plugindungeon.DungeonPlugin
+api-version: 1.21
+author: YourName
+depend: [WorldEdit]
+commands:
+  dungeon:
+    description: Comandos administrativos de dungeon
+    usage: /dungeon
+  dgdebug:
+    description: Toggle debug mode
+permissions:
+  dungeon.admin:
+    description: Permissão para usar comandos admin
+    default: op
 
