@@ -1,96 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-  <groupId>plugindungeon</groupId>
-  <artifactId>DungeonPlugin</artifactId>
-  <version>1.0.0</version>
-  <packaging>jar</packaging>
+    <modelVersion>4.0.0</modelVersion>
 
-  <properties>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-    <spigot.api.version>1.21.10-R0.1-SNAPSHOT</spigot.api.version>
-  </properties>
+    <groupId>com.dungeon</groupId>
+    <artifactId>DungeonPlugin</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
 
-  <repositories>
-    <repository>
-      <id>papermc</id>
-      <url>https://repo.papermc.io/repository/maven-public/</url>
-    </repository>
-    <repository>
-      <id>enginehub</id>
-      <url>https://maven.enginehub.org/repo/</url>
-    </repository>
-    <repository>
-      <id>spigot-repo</id>
-      <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
-    </repository>
-  </repositories>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <paper.version>1.20.4-R0.1-SNAPSHOT</paper.version>
+    </properties>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.spigotmc</groupId>
-      <artifactId>spigot-api</artifactId>
-      <version>${spigot.api.version}</version>
-      <scope>provided</scope>
-    </dependency>
+    <repositories>
+        <repository>
+            <id>papermc-repo</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+    </repositories>
 
-    <dependency>
-      <groupId>com.sk89q.worldedit</groupId>
-      <artifactId>worldedit-bukkit</artifactId>
-      <version>7.2.10</version>
-      <scope>provided</scope>
-    </dependency>
+    <dependencies>
+        <dependency>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>${paper.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
 
-    <dependency>
-      <groupId>net.kyori</groupId>
-      <artifactId>adventure-api</artifactId>
-      <version>4.14.0</version>
-      <scope>provided</scope>
-    </dependency>
-  </dependencies>
+    <build>
+        <plugins>
 
-  <build>
-    <plugins>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.10.1</version>
-        <configuration>
-          <source>${maven.compiler.source}</source>
-          <target>${maven.compiler.target}</target>
-        </configuration>
-      </plugin>
+            <!-- COMPILAÇÃO -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
-        <version>3.4.1</version>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals><goal>shade</goal></goals>
-            <configuration>
-              <createDependencyReducedPom>false</createDependencyReducedPom>
-              <filters>
-                <filter>
-                  <artifact>*:*</artifact>
-                  <excludes>
-                    <exclude>org/spigotmc/**</exclude>
-                    <exclude>org/bukkit/**</exclude>
-                    <exclude>com/sk89q/worldedit/**</exclude>
-                    <exclude>net/kyori/**</exclude>
-                  </excludes>
-                </filter>
-              </filters>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
+            <!-- SOMENTE CRIA O .JAR NORMAL -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.dungeon.Main</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
 
-    </plugins>
-  </build>
+        </plugins>
+    </build>
+
 </project>
-
