@@ -16,7 +16,7 @@ public class MinibossAdvancedAI {
         this.entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(50 + level*10);
         this.entity.setHealth(50 + level*10);
         // Add simple behavior: periodic leap or speed
-        spawn.getWorld().spawnParticle(org.bukkit.Particle.SMOKE_NORMAL, spawn, 20);
+        spawn.getWorld().spawnParticle(org.bukkit.Particle.SMOKE, spawn, 20);
     }
 
     public LivingEntity getEntity() { return entity; }
