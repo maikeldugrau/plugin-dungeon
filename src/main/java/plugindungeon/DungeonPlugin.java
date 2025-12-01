@@ -51,7 +51,7 @@ public class DungeonPlugin extends JavaPlugin {
         this.dungeonManager = new DungeonManager(this, roomGenerator);
 
         // API provider
-        DungeonAPIProvider.setAPI(dungeonManager);
+        DungeonAPIProvider.set(dungeonManager);
 
         // Commands
         getCommand("dungeon").setExecutor(new DungeonAdminCommand());
