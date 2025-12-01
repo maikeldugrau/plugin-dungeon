@@ -6,15 +6,10 @@ import org.bukkit.entity.Player;
 import plugindungeon.api.DungeonAPI;
 import plugindungeon.api.listeners.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DungeonManager implements DungeonAPI {
-
-    // ============================================================
-    // LISTENERS GERENCIADOS POR PLUGIN
-    // ============================================================
-
-    private final Map<Object, List<Object>> pluginListeners = new HashMap<>();
 
     private final List<DungeonStartListener> startListeners = new ArrayList<>();
     private final List<DungeonCompleteListener> completeListeners = new ArrayList<>();
@@ -26,14 +21,6 @@ public class DungeonManager implements DungeonAPI {
     private final List<DungeonLootGenerateListener> lootListeners = new ArrayList<>();
     private final List<DungeonRoomGenerateListener> roomListeners = new ArrayList<>();
 
-
-    // ============================================================
-    // REGISTRO DE LISTENERS
-    // ============================================================
-
-    private void storeListener(Object plugin, Object listener) {
-        pluginListeners.computeIfAbsent(plugin, k -> new ArrayList<>()).add(listener);
-    }
 
     @Override
     public void registerDungeonStartListener(DungeonStartListener listener) {
@@ -76,32 +63,18 @@ public class DungeonManager implements DungeonAPI {
     }
 
 
-    // ============================================================
-    // DESREGISTRO POR PLUGIN
-    // ============================================================
-
     @Override
     public void unregisterAllListeners(Object pluginInstance) {
-
-        List<Object> list = pluginListeners.remove(pluginInstance);
-
-        if (list == null) return;
-
-        startListeners.removeIf(list::contains);
-        completeListeners.removeIf(list::contains);
-        failListeners.removeIf(list::contains);
-        levelUpListeners.removeIf(list::contains);
-
-        mobDeathListeners.removeIf(list::contains);
-        bossDeathListeners.removeIf(list::contains);
-        lootListeners.removeIf(list::contains);
-        roomListeners.removeIf(list::contains);
+        startListeners.clear();
+        completeListeners.clear();
+        failListeners.clear();
+        levelUpListeners.clear();
+        mobDeathListeners.clear();
+        bossDeathListeners.clear();
+        lootListeners.clear();
+        roomListeners.clear();
     }
 
-
-    // ============================================================
-    // IMPLEMENTAÇÃO DO MÉTODO PRINCIPAL DO API
-    // ============================================================
 
     @Override
     public boolean startDungeon(String dungeonId, String playerName) {
@@ -121,10 +94,6 @@ public class DungeonManager implements DungeonAPI {
         return true;
     }
 
-
-    // ============================================================
-    // DISPARADORES USADOS INTERNAMENTE PELO PLUGIN
-    // ============================================================
 
     public void completeDungeon(String dungeonId, Player player) {
         for (DungeonCompleteListener listener : completeListeners) {
