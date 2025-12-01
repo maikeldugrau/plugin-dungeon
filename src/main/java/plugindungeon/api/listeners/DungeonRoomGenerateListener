@@ -1,7 +1,0 @@
-package plugindungeon.api.listeners;
-
-import plugindungeon.core.generation.RoomData;
-
-public interface DungeonRoomGenerateListener {
-    void onRoomGenerate(String dungeonId, RoomData room);
-}
