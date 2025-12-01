@@ -55,7 +55,7 @@ public class RoomGenerator {
         Bukkit.getScheduler().runTask(plugin, () -> {
             switch (room.theme) {
                 case FIRE -> room.origin.getWorld().spawnParticle(org.bukkit.Particle.FLAME, room.getCenter(), 40, 1,1,1);
-                case SHADOW -> room.origin.getWorld().spawnParticle(org.bukkit.Particle.SMOKE_LARGE, room.getCenter(), 40,1,1,1);
+                case SHADOW -> room.origin.getWorld().spawnParticle(org.bukkit.Particle.SMOKE, room.getCenter(), 40,1,1,1);
                 default -> {}
             }
         });
