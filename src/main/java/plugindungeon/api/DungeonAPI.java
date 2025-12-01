@@ -1,14 +1,20 @@
 package plugindungeon.api;
 
-import org.bukkit.Location;
-import org.bukkit.entity.Player;
-import java.util.List;
-import plugindungeon.core.generation.RoomData;
+import plugindungeon.api.listeners.*;
 
 public interface DungeonAPI {
-    String generateDungeon(Location origin, int levels, int minRooms, int maxRooms);
+
+    void registerDungeonStartListener(DungeonStartListener listener);
     void registerDungeonCompleteListener(DungeonCompleteListener listener);
-    List<RoomData> getActiveRooms(String dungeonId);
-    void triggerNextRoom(String dungeonId);
-    void teleportPlayerToDungeon(Player player, String dungeonId);
+    void registerDungeonFailListener(DungeonFailListener listener);
+    void registerDungeonLevelUpListener(DungeonLevelUpListener listener);
+
+    void registerDungeonMobDeathListener(DungeonMobDeathListener listener);
+    void registerDungeonBossDeathListener(DungeonBossDeathListener listener);
+    void registerDungeonLootGenerateListener(DungeonLootGenerateListener listener);
+    void registerDungeonRoomGenerateListener(DungeonRoomGenerateListener listener);
+
+    void unregisterAllListeners(Object pluginInstance);
+
+    boolean startDungeon(String dungeonId, String playerName);
 }
