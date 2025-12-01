@@ -2,14 +2,20 @@ package plugindungeon.core;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 
+import plugindungeon.DungeonPlugin;
 import plugindungeon.api.DungeonAPI;
 import plugindungeon.api.listeners.*;
+import plugindungeon.core.generation.DungeonRoomGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class DungeonManager implements DungeonAPI {
+
+    private final DungeonPlugin plugin;
+    private final DungeonRoomGenerator roomGenerator;
 
     private final List<DungeonStartListener> startListeners = new ArrayList<>();
     private final List<DungeonCompleteListener> completeListeners = new ArrayList<>();
@@ -22,6 +28,18 @@ public class DungeonManager implements DungeonAPI {
     private final List<DungeonRoomGenerateListener> roomListeners = new ArrayList<>();
 
 
+    // -----------------------------
+    //  CONSTRUTOR (CORRIGIDO)
+    // -----------------------------
+    public DungeonManager(DungeonPlugin plugin, DungeonRoomGenerator generator) {
+        this.plugin = plugin;
+        this.roomGenerator = generator;
+    }
+
+
+    // -----------------------------
+    //  REGISTRO DE LISTENERS
+    // -----------------------------
     @Override
     public void registerDungeonStartListener(DungeonStartListener listener) {
         startListeners.add(listener);
@@ -63,6 +81,9 @@ public class DungeonManager implements DungeonAPI {
     }
 
 
+    // -----------------------------
+    //  DESREGISTRAR LISTENERS
+    // -----------------------------
     @Override
     public void unregisterAllListeners(Object pluginInstance) {
         startListeners.clear();
@@ -75,7 +96,16 @@ public class DungeonManager implements DungeonAPI {
         roomListeners.clear();
     }
 
+    // Exigido pela DungeonAPI
+    @Override
+    public void shutdownAll() {
+        unregisterAllListeners(plugin);
+    }
 
+
+    // -----------------------------
+    //  EVENTOS DA DUNGEON
+    // -----------------------------
     @Override
     public boolean startDungeon(String dungeonId, String playerName) {
 
@@ -93,7 +123,6 @@ public class DungeonManager implements DungeonAPI {
 
         return true;
     }
-
 
     public void completeDungeon(String dungeonId, Player player) {
         for (DungeonCompleteListener listener : completeListeners) {
@@ -135,5 +164,14 @@ public class DungeonManager implements DungeonAPI {
         for (DungeonRoomGenerateListener listener : roomListeners) {
             listener.onDungeonRoomGenerate(dungeonId, roomNumber);
         }
+    }
+
+
+    // -----------------------------
+    //  (Opcional) PREVIEW DO BOSS
+    //  Se quiser, posso implementar isso também.
+    // -----------------------------
+    public void forceSpawnBossPreview(Location loc) {
+        Bukkit.getLogger().warning("[DungeonPlugin] forceSpawnBossPreview() ainda não implementado.");
     }
 }
