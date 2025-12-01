@@ -1,21 +1,17 @@
 package plugindungeon.api;
 
-public class DungeonAPIProvider {
+public final class DungeonAPIProvider {
+    private static DungeonAPI apiInstance;
+    private DungeonAPIProvider(){}
 
-    private static DungeonAPI api;
+    public static void set(DungeonAPI api) { apiInstance = api; }
+    public static void setAPI(DungeonAPI api) { set(api); }
 
-    public static void setAPI(DungeonAPI instance) {
-        api = instance;
+    // Backwards-compatible alias (muito código chama DungeonAPIProvider.get())
+    public static DungeonAPI get() {
+        if (apiInstance == null) throw new IllegalStateException("DungeonAPI não registrada");
+        return apiInstance;
     }
 
-    public static DungeonAPI getAPI() {
-        if (api == null) {
-            throw new IllegalStateException("DungeonAPI ainda não foi inicializada!");
-        }
-        return api;
-    }
-
-    public static boolean isAvailable() {
-        return api != null;
-    }
+    public static boolean isAvailable() { return apiInstance != null; }
 }
