@@ -7,9 +7,8 @@ public final class DungeonAPIProvider {
     public static void set(DungeonAPI api) { apiInstance = api; }
     public static void setAPI(DungeonAPI api) { set(api); }
 
-    // Backwards-compatible alias (muito código chama DungeonAPIProvider.get())
     public static DungeonAPI get() {
-        if (apiInstance == null) throw new IllegalStateException("DungeonAPI não registrada");
+        if (apiInstance == null) throw new IllegalStateException("DungeonAPI not registered");
         return apiInstance;
     }
 
