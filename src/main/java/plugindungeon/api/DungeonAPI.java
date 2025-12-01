@@ -24,8 +24,8 @@ public interface DungeonAPI {
 
     boolean startDungeon(String dungeonId, String playerName);
 
-    // MÉTODOS DO DUNGEON MANAGER
-    String generateDungeon(Location origin, int levels, int minRooms, int maxRooms);
+    // DUNGEON MANAGER METHODS
+    String generateDungeon(Location origin, int levels, int minRooms, intRooms, int maxRooms);
 
     List<RoomData> getActiveRooms(String dungeonId);
 
