@@ -1,76 +1,150 @@
 package plugindungeon.core;
 
-import plugindungeon.DungeonPlugin;
-import plugindungeon.api.DungeonAPI;
-import plugindungeon.api.DungeonAPIProvider;
-import plugindungeon.core.generation.DungeonRoomGenerator;
-import plugindungeon.core.generation.RoomData;
-import plugindungeon.loot.LootIntegrator;
-import plugindungeon.mobs.LordeCataclismo;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import plugindungeon.api.DungeonAPI;
+import plugindungeon.api.listeners.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class DungeonManager implements DungeonAPI {
 
-    private final DungeonPlugin plugin;
-    private final DungeonRoomGenerator generator;
-    private final Map<String, List<RoomData>> activeDungeons = new ConcurrentHashMap<>();
-    private final LootIntegrator lootIntegrator;
+    // LISTAS DE LISTENERS
+    private final List<DungeonStartListener> startListeners = new ArrayList<>();
+    private final List<DungeonCompleteListener> completeListeners = new ArrayList<>();
+    private final List<DungeonFailListener> failListeners = new ArrayList<>();
+    private final List<DungeonLevelUpListener> levelUpListeners = new ArrayList<>();
 
-    public DungeonManager(DungeonPlugin plugin, DungeonRoomGenerator generator) {
-        this.plugin = plugin;
-        this.generator = generator;
-        this.lootIntegrator = new LootIntegrator(plugin);
-    }
+    private final List<DungeonMobDeathListener> mobDeathListeners = new ArrayList<>();
+    private final List<DungeonBossDeathListener> bossDeathListeners = new ArrayList<>();
+    private final List<DungeonLootGenerateListener> lootListeners = new ArrayList<>();
+    private final List<DungeonRoomGenerateListener> roomListeners = new ArrayList<>();
+
 
     @Override
-    public String generateDungeon(Location origin, int levels, int minRooms, int maxRooms) {
-        String id = generator.generateDungeon(origin, levels, minRooms, maxRooms);
-        // For now store empty list (RoomData objects are created inside generator — for fuller integration generator should return them)
-        activeDungeons.put(id, new ArrayList<>());
-        plugin.getLogger().info("Dungeon generated id=" + id + " at " + origin);
-        return id;
+    public void registerDungeonStartListener(DungeonStartListener listener) {
+        startListeners.add(listener);
     }
 
     @Override
     public void registerDungeonCompleteListener(DungeonCompleteListener listener) {
-        // simple placeholder - not storing listeners in this simplified manager
+        completeListeners.add(listener);
     }
 
     @Override
-    public List<RoomData> getActiveRooms(String dungeonId) {
-        return activeDungeons.getOrDefault(dungeonId, Collections.emptyList());
+    public void registerDungeonFailListener(DungeonFailListener listener) {
+        failListeners.add(listener);
     }
 
     @Override
-    public void triggerNextRoom(String dungeonId) {
-        plugin.getLogger().info("Trigger next room for " + dungeonId);
+    public void registerDungeonLevelUpListener(DungeonLevelUpListener listener) {
+        levelUpListeners.add(listener);
     }
 
     @Override
-    public void teleportPlayerToDungeon(Player player, String dungeonId) {
-        // crude: teleport to world spawn or first known room center
-        List<RoomData> rooms = getActiveRooms(dungeonId);
-        if (!rooms.isEmpty()) player.teleport(rooms.get(0).getCenter());
-        else player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+    public void registerDungeonMobDeathListener(DungeonMobDeathListener listener) {
+        mobDeathListeners.add(listener);
     }
 
-    // convenience for admin preview of boss
-    public void forceSpawnBossPreview(Location at) {
-        LordeCataclismo boss = new LordeCataclismo(plugin, lootIntegrator, 1);
-        boss.spawn(at.add(0,2,0));
+    @Override
+    public void registerDungeonBossDeathListener(DungeonBossDeathListener listener) {
+        bossDeathListeners.add(listener);
     }
 
-    public void shutdownAll() {
-        // TODO: clean up active dungeons, boss tasks, etc.
+    @Override
+    public void registerDungeonLootGenerateListener(DungeonLootGenerateListener listener) {
+        lootListeners.add(listener);
     }
 
-    public interface DungeonCompleteListener {
-        void onDungeonComplete(String dungeonId, Player player);
+    @Override
+    public void registerDungeonRoomGenerateListener(DungeonRoomGenerateListener listener) {
+        roomListeners.add(listener);
+    }
+
+
+    @Override
+    public void unregisterAllListeners(Object pluginInstance) {
+        // Remove tudo (simples)
+        startListeners.clear();
+        completeListeners.clear();
+        failListeners.clear();
+        levelUpListeners.clear();
+        mobDeathListeners.clear();
+        bossDeathListeners.clear();
+        lootListeners.clear();
+        roomListeners.clear();
+    }
+
+    // ============================================================
+    // IMPLEMENTAÇÃO DO MÉTODO PRINCIPAL DO API
+    // ============================================================
+
+    @Override
+    public boolean startDungeon(String dungeonId, String playerName) {
+
+        Player player = Bukkit.getPlayer(playerName);
+        if (player == null) {
+            Bukkit.getLogger().warning("[DungeonPlugin] Jogador não encontrado: " + playerName);
+            return false;
+        }
+
+        // Mensagem simples
+        player.sendMessage("§aIniciando dungeon §f" + dungeonId);
+
+        // Disparar evento
+        for (DungeonStartListener listener : startListeners) {
+            listener.onDungeonStart(dungeonId, player);
+        }
+
+        return true;
+    }
+
+
+    // ============================================================
+    // DISPARADORES UTILIZADOS INTERNAMENTE PELO PLUGIN
+    // ============================================================
+
+    public void completeDungeon(String dungeonId, Player player) {
+        for (DungeonCompleteListener listener : completeListeners) {
+            listener.onDungeonComplete(dungeonId, player);
+        }
+    }
+
+    public void failDungeon(String dungeonId, Player player) {
+        for (DungeonFailListener listener : failListeners) {
+            listener.onDungeonFail(dungeonId, player);
+        }
+    }
+
+    public void levelUpDungeon(String dungeonId, Player player, int newLevel) {
+        for (DungeonLevelUpListener listener : levelUpListeners) {
+            listener.onDungeonLevelUp(dungeonId, player, newLevel);
+        }
+    }
+
+    public void mobDeath(String dungeonId, Player killer) {
+        for (DungeonMobDeathListener listener : mobDeathListeners) {
+            listener.onDungeonMobDeath(dungeonId, killer);
+        }
+    }
+
+    public void bossDeath(String dungeonId, Player killer) {
+        for (DungeonBossDeathListener listener : bossDeathListeners) {
+            listener.onDungeonBossDeath(dungeonId, killer);
+        }
+    }
+
+    public void generateLoot(String dungeonId, Player player) {
+        for (DungeonLootGenerateListener listener : lootListeners) {
+            listener.onDungeonLootGenerate(dungeonId, player);
+        }
+    }
+
+    public void roomGenerated(String dungeonId, int roomNumber) {
+        for (DungeonRoomGenerateListener listener : roomListeners) {
+            listener.onDungeonRoomGenerate(dungeonId, roomNumber);
+        }
     }
 }
