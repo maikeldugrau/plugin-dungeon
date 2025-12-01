@@ -115,7 +115,7 @@ public class LordeCataclismo {
             if (target == null) return;
             Location markLoc = target.getLocation().clone();
             target.sendMessage("§cVocê foi marcado pelo Lorde Cataclismo!");
-            boss.getWorld().spawnParticle(Particle.SPELL_INSTANT, markLoc, 60);
+            boss.getWorld().spawnParticle(Particle.SPELL, markLoc, 60);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (target.isDead()) return;
                 boss.getWorld().strikeLightning(markLoc);
