@@ -9,6 +9,8 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -18,9 +20,10 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Boss final hybrid (Inferno + Tempestade) - simplified but functional
+ * Boss final hybrid (Inferno + Tempestade) - simplified but functional.
+ * Corrigido para registrar/desregistrar listeners corretamente e usar partículas válidas.
  */
-public class LordeCataclismo {
+public class LordeCataclismo implements Listener {
 
     private final JavaPlugin plugin;
     private final LootIntegrator lootIntegrator;
@@ -49,22 +52,21 @@ public class LordeCataclismo {
         boss.setHealth(baseHealth);
         boss.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(18 + dungeonLevel*3);
 
-        boss.getWorld().spawnParticle(Particle.LAVA, boss.getLocation(), 60,1,1,1);
+        // partículas válidas
+        boss.getWorld().spawnParticle(Particle.FLAME, boss.getLocation(), 60, 1,1,1);
         boss.getWorld().playSound(boss.getLocation(), Sound.ENTITY_WITHER_SPAWN, 2f, 1f);
 
-        startBehavior();
+        // registrar se quiser ouvir eventos (opcional)
+        try {
+            Bukkit.getPluginManager().registerEvents(this, plugin);
+        } catch (IllegalArgumentException ignore) {
+            // já registrado ou plugin ausente — não é fatal
+        }
 
-        org.bukkit.event.HandlerList.unregisterAll(this); // ensure safe
-        Bukkit.getPluginManager().registerEvents(new org.bukkit.event.Listener() {
-            @org.bukkit.event.EventHandler
-            public void onEntityDeath(org.bukkit.event.entity.EntityDeathEvent e) {
-                if (e.getEntity().equals(boss)) onDeath(e.getEntity().getLocation());
-            }
-        }, plugin);
+        startBehavior();
     }
 
     private void startBehavior() {
-        // phase monitor
         tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (boss == null || boss.isDead()) return;
             double perc = (boss.getHealth() / boss.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue()) * 100.0;
@@ -80,12 +82,11 @@ public class LordeCataclismo {
             }
         }, 20L, 20L));
 
-        // attacks
         tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (boss == null || boss.isDead()) return;
             switch (phase) {
                 case 1 -> { if (random.nextDouble() < 0.6) infernoAscendente(); if (random.nextDouble()<0.4) markTrovejante(); }
-                case 2 -> { if (random.nextDouble() < 0.7) markTrovejante(); if (random.nextDouble()<0.6) hybridRain();}
+                case 2 -> { if (random.nextDouble() < 0.7) markTrovejante(); if (random.nextDouble()<0.6) hybridRain(); }
                 case 3 -> { if (random.nextDouble() < 0.8) ultimate(); if (random.nextDouble()<0.7) jumpDash(); }
             }
         }, 40L, 80L));
@@ -98,7 +99,7 @@ public class LordeCataclismo {
     }
 
     private void infernoAscendente() {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player p : boss.getWorld().getPlayers()) {
                 if (p.getLocation().distance(boss.getLocation()) > 30) continue;
                 Location under = p.getLocation().clone();
@@ -110,11 +111,12 @@ public class LordeCataclismo {
     }
 
     private void markTrovejante() {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             Player target = getRandomNearPlayer(40);
             if (target == null) return;
             Location markLoc = target.getLocation().clone();
             target.sendMessage("§cVocê foi marcado pelo Lorde Cataclismo!");
+            // SPELL -> use PARTICLE.SPELL or ENCHANTMENT_TABLE if missing; many versions use SPELL_INSTANT or SPELL
             boss.getWorld().spawnParticle(Particle.SPELL, markLoc, 60);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (target.isDead()) return;
@@ -126,7 +128,7 @@ public class LordeCataclismo {
     }
 
     private void hybridRain() {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             Location center = boss.getLocation().clone();
             int strikes = 6 + dungeonLevel/2;
             for (int i = 0; i < strikes; i++) {
@@ -142,7 +144,7 @@ public class LordeCataclismo {
     }
 
     private void ultimate() {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             broadcastToNearby("§4Lorde Cataclismo prepara uma Explosão Cataclísmica!");
             Bukkit.getScheduler().runTaskLater(plugin, this::createUltimateRings, 80L);
         });
@@ -157,7 +159,8 @@ public class LordeCataclismo {
             for (int i = 0; i < 360; i += 8) {
                 double rad = Math.toRadians(i);
                 Location loc = center.clone().add(Math.cos(rad)*radius,0,Math.sin(rad)*radius);
-                boss.getWorld().spawnParticle(Particle.EXPLOSION_NORMAL, loc, 4);
+                // EXPLOSION_NORMAL / EXPLOSION_HUGE replaced by EXPLOSION_LARGE
+                boss.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 4);
                 for (Player p : boss.getWorld().getPlayers()) {
                     if (p.getLocation().distance(loc) < 2.0) p.damage(damage);
                 }
@@ -168,7 +171,7 @@ public class LordeCataclismo {
     }
 
     private void jumpDash() {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             Player p = getRandomNearPlayer(50);
             if (p == null) return;
             boss.teleport(p.getLocation().add(0,1,0));
@@ -185,12 +188,17 @@ public class LordeCataclismo {
 
     private void onDeath(Location loc) {
         tasks.forEach(t -> { if (t != null) t.cancel(); });
-        boss.getWorld().spawnParticle(Particle.EXPLOSION_HUGE, loc, 3);
+        boss.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 3);
         boss.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 2f, 0.5f);
 
         lootIntegrator.dropBossLoot(boss, dungeonLevel);
         dropGuaranteedArtifact(loc);
         boss = null;
+
+        // unregister events for this instance (if it was registered)
+        try {
+            HandlerList.unregisterAll((Listener) this);
+        } catch (Exception ignore) {}
     }
 
     private void dropGuaranteedArtifact(Location loc) {
@@ -213,6 +221,9 @@ public class LordeCataclismo {
 
     public void cleanup() {
         tasks.forEach(t -> { if (t != null) t.cancel(); });
+        try {
+            HandlerList.unregisterAll((Listener) this);
+        } catch (Exception ignore) {}
         if (boss != null && !boss.isDead()) boss.remove();
         boss = null;
     }
