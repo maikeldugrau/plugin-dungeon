@@ -24,8 +24,8 @@ public interface DungeonAPI {
 
     boolean startDungeon(String dungeonId, String playerName);
 
-    // DUNGEON MANAGER METHODS
-    String generateDungeon(Location origin, int levels, int minRooms, intRooms, int maxRooms);
+    // FIXADO — ESTAVA CAUSANDO O BUILD FAILURE
+    String generateDungeon(Location origin, int levels, int minRooms, int maxRooms);
 
     List<RoomData> getActiveRooms(String dungeonId);
 
