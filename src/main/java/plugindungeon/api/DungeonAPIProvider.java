@@ -1,32 +1,21 @@
 package plugindungeon.api;
 
-/**
- * Classe utilitária que fornece o acesso estático ao DungeonAPI.
- */
-public final class DungeonAPIProvider {
+public class DungeonAPIProvider {
 
     private static DungeonAPI api;
 
-    private DungeonAPIProvider() {}
-
-    /**
-     * Registra a API para ser usada globalmente.
-     *
-     * @param dungeonAPI Instância da API.
-     */
-    public static void register(DungeonAPI dungeonAPI) {
-        api = dungeonAPI;
+    public static void setAPI(DungeonAPI instance) {
+        api = instance;
     }
 
-    /**
-     * Obtém a API registrada.
-     *
-     * @return DungeonAPI registrada.
-     */
-    public static DungeonAPI get() {
+    public static DungeonAPI getAPI() {
         if (api == null) {
-            throw new IllegalStateException("DungeonAPI não foi registrada ainda!");
+            throw new IllegalStateException("DungeonAPI ainda não foi inicializada!");
         }
         return api;
+    }
+
+    public static boolean isAvailable() {
+        return api != null;
     }
 }
