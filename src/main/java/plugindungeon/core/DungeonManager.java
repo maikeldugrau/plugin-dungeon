@@ -44,6 +44,34 @@ public class DungeonManager implements DungeonAPI {
     public void registerDungeonStartListener(DungeonStartListener listener) {
         startListeners.add(listener);
     }
+    @Override
+public String generateDungeon(Location origin, int levels, int minRooms, int maxRooms) {
+    // TODO — implemente geração real
+    return "dummyDungeon";
+}
+
+@Override
+public List<RoomData> getActiveRooms(String dungeonId) {
+    // TODO — retornar lista real
+    return java.util.Collections.emptyList();
+}
+
+@Override
+public void triggerNextRoom(String dungeonId) {
+    // TODO — lógica real
+}
+
+@Override
+public void teleportPlayerToDungeon(Player player, String dungeonId) {
+    // TODO — obter posição da dungeon real
+    player.sendMessage("§7Dungeon ainda não implementada — teleporte simulado.");
+}
+
+@Override
+public void shutdownAll() {
+    // Cancelar tasks, limpar dungeons, etc.
+}
+
 
     @Override
     public void registerDungeonCompleteListener(DungeonCompleteListener listener) {
