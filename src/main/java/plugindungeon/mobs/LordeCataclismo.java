@@ -117,7 +117,7 @@ public class LordeCataclismo implements Listener {
             Location markLoc = target.getLocation().clone();
             target.sendMessage("§cVocê foi marcado pelo Lorde Cataclismo!");
             // SPELL -> use PARTICLE.SPELL or ENCHANTMENT_TABLE if missing; many versions use SPELL_INSTANT or SPELL
-            boss.getWorld().spawnParticle(Particle.SPELL, markLoc, 60);
+            boss.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE, markLoc, 60);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (target.isDead()) return;
                 boss.getWorld().strikeLightning(markLoc);
@@ -160,7 +160,7 @@ public class LordeCataclismo implements Listener {
                 double rad = Math.toRadians(i);
                 Location loc = center.clone().add(Math.cos(rad)*radius,0,Math.sin(rad)*radius);
                 // EXPLOSION_NORMAL / EXPLOSION_HUGE replaced by EXPLOSION_LARGE
-                boss.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 4);
+                boss.getWorld().spawnParticle(Particle.EXPLOSION, loc, 4);
                 for (Player p : boss.getWorld().getPlayers()) {
                     if (p.getLocation().distance(loc) < 2.0) p.damage(damage);
                 }
@@ -188,7 +188,7 @@ public class LordeCataclismo implements Listener {
 
     private void onDeath(Location loc) {
         tasks.forEach(t -> { if (t != null) t.cancel(); });
-        boss.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 3);
+        boss.getWorld().spawnParticle(Particle.EXPLOSION, loc, 3);
         boss.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 2f, 0.5f);
 
         lootIntegrator.dropBossLoot(boss, dungeonLevel);
