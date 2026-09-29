@@ -376,6 +376,27 @@ config = re.sub(
 )
 write(config_rel, config)
 
+# ---- remove pre-1.13 water aliases from listeners (26.2-only) ----
+for rel in [
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/SpleefListener.java",
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/CampoMinadoListener.java",
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/FrogListener.java",
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/SumoListener.java",
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/FightListener.java",
+    "src/main/java/com/ars3ne/eventos/listeners/eventos/BattleRoyaleListener.java",
+]:
+    src = read(rel)
+    src = re.sub(
+        r'Material\.WATER\s*\|\|\s*\(!XMaterial\.supports\(13\)\s*&&\s*[^)]*Material\.STATIONARY_WATER\)',
+        'Material.WATER',
+        src,
+    )
+    src = src.replace(
+        'Material.WATER || e.getTo().getBlock().getType() == XMaterial.WATER.parseMaterial()',
+        'Material.WATER'
+    )
+    write(rel, src)
+
 # ---- Frog: remove pre-flattening byte data and restore exact BlockData ----
 frog = r'''/*
  *
