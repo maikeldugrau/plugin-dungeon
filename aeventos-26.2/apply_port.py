@@ -88,22 +88,11 @@ if "<artifactId>maven-compiler-plugin</artifactId>" not in pom:
 pom = pom.replace("<version>1.16-R0.5-SNAPSHOT</version>", "<version>1.21-R0.4</version>", 1)
 pom = pom.replace("<version>2.10.9</version>", "<version>2.11.7</version>", 1)
 
-# IridiumColorAPI moved to its own public repository.
-if "<id>iridiumdevelopment</id>" not in pom:
-    pom = pom.replace(
-        "<repositories>",
-        """<repositories>
-        <repository>
-            <id>iridiumdevelopment</id>
-            <url>https://nexus.iridiumdevelopment.net/repository/maven-releases/</url>
-        </repository>""",
-        1,
-    )
-pom = pom.replace("<version>1.0.6</version>", "<version>LATEST</version>", 1)
-
 # Legacy optional integrations that are no longer publicly resolvable and are
 # not used by MC Games. SimpleClans is retained because its API still resolves.
 for group, artifact in [
+    ("net.md-5", "bungeecord-api"),
+    ("com.iridium", "IridiumColorAPI"),
     ("br.com.devpaulo", "legendchat"),
     ("com.massivecraft", "Factions"),
     ("com.massivecraft", "MassiveCore"),
@@ -244,6 +233,142 @@ if legend.exists():
     legend.unlink()
     print("removed: src/main/java/com/ars3ne/eventos/hooks/LegendChatHook.java")
 
+
+# ---- internal MIT color compatibility layer (replaces abandoned external binary dependency) ----
+color_api = r'''package com.iridium.iridiumcolorapi;
+
+import java.awt.Color;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Small MIT-compatible replacement for the subset of IridiumColorAPI used by aEventos.
+ * Supports SOLID, GRADIENT and RAINBOW tags documented by the original plugin.
+ */
+public final class IridiumColorAPI {
+    private static final Pattern GRADIENT = Pattern.compile(
+            "(?is)<GRADIENT:([0-9a-f]{6})>(.*?)</GRADIENT:([0-9a-f]{6})>");
+    private static final Pattern RAINBOW = Pattern.compile(
+            "(?is)<RAINBOW(\\d*)>(.*?)</RAINBOW>");
+    private static final Pattern SOLID = Pattern.compile(
+            "(?i)<SOLID:([0-9a-f]{6})>");
+
+    private IridiumColorAPI() {}
+
+    public static String process(String input) {
+        if (input == null || input.isEmpty()) return input;
+
+        String value = processGradients(input);
+        value = processRainbows(value);
+
+        Matcher solid = SOLID.matcher(value);
+        StringBuffer out = new StringBuffer();
+        while (solid.find()) {
+            solid.appendReplacement(out, Matcher.quoteReplacement(hex(solid.group(1))));
+        }
+        solid.appendTail(out);
+        return out.toString();
+    }
+
+    private static String processGradients(String input) {
+        Matcher matcher = GRADIENT.matcher(input);
+        StringBuffer out = new StringBuffer();
+        while (matcher.find()) {
+            Color start = Color.decode("#" + matcher.group(1));
+            Color end = Color.decode("#" + matcher.group(3));
+            String text = matcher.group(2);
+            String replacement = colorizeGradient(text, start, end);
+            matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
+    private static String colorizeGradient(String text, Color start, Color end) {
+        int chars = Math.max(1, visibleCharacterCount(text));
+        int visibleIndex = 0;
+        StringBuilder result = new StringBuilder(text.length() * 8);
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+
+            // Preserve legacy section formatting sequences without counting them as visible chars.
+            if (ch == '§' && i + 1 < text.length()) {
+                result.append(ch).append(text.charAt(++i));
+                continue;
+            }
+
+            double t = chars <= 1 ? 0.0 : (double) visibleIndex / (chars - 1);
+            int r = (int) Math.round(start.getRed() + (end.getRed() - start.getRed()) * t);
+            int g = (int) Math.round(start.getGreen() + (end.getGreen() - start.getGreen()) * t);
+            int b = (int) Math.round(start.getBlue() + (end.getBlue() - start.getBlue()) * t);
+            result.append(hex(String.format(Locale.ROOT, "%02X%02X%02X", r, g, b))).append(ch);
+            visibleIndex++;
+        }
+        return result.toString();
+    }
+
+    private static String processRainbows(String input) {
+        Matcher matcher = RAINBOW.matcher(input);
+        StringBuffer out = new StringBuffer();
+
+        while (matcher.find()) {
+            String text = matcher.group(2);
+            float saturation = 1.0f;
+            if (!matcher.group(1).isEmpty()) {
+                try {
+                    int raw = Integer.parseInt(matcher.group(1));
+                    saturation = Math.max(0.01f, Math.min(1.0f, raw <= 1 ? raw : raw / 100.0f));
+                } catch (NumberFormatException ignored) {}
+            }
+
+            int chars = Math.max(1, visibleCharacterCount(text));
+            int visible = 0;
+            StringBuilder replacement = new StringBuilder(text.length() * 8);
+
+            for (int i = 0; i < text.length(); i++) {
+                char ch = text.charAt(i);
+                if (ch == '§' && i + 1 < text.length()) {
+                    replacement.append(ch).append(text.charAt(++i));
+                    continue;
+                }
+
+                int rgb = Color.HSBtoRGB((float) visible / chars, saturation, 1.0f);
+                replacement.append(hex(String.format(Locale.ROOT, "%06X", rgb & 0xFFFFFF))).append(ch);
+                visible++;
+            }
+
+            matcher.appendReplacement(out, Matcher.quoteReplacement(replacement.toString()));
+        }
+
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
+    private static int visibleCharacterCount(String text) {
+        int count = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '§' && i + 1 < text.length()) {
+                i++;
+            } else {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static String hex(String value) {
+        String clean = value.replace("#", "").toUpperCase(Locale.ROOT);
+        StringBuilder out = new StringBuilder("§x");
+        for (char ch : clean.toCharArray()) {
+            out.append('§').append(ch);
+        }
+        return out.toString();
+    }
+}
+'''
+write("src/main/java/com/iridium/iridiumcolorapi/IridiumColorAPI.java", color_api)
 
 # ---- plugin metadata ----
 plugin_yml = read("src/main/resources/plugin.yml")
