@@ -109,147 +109,118 @@ for group, artifact in [
 
 write("pom.xml", pom)
 
-# ---- remove unsupported legacy hook code while preserving SimpleClans ----
-def remove_control_blocks(source: str, needles):
-    """Remove complete Java if/for blocks whose header contains a legacy-hook needle."""
-    i = 0
-    while i < len(source):
-        positions = [
-            source.find("if(", i),
-            source.find("if (", i),
-            source.find("for(", i),
-            source.find("for (", i),
-        ]
-        candidates = [p for p in positions if p != -1]
-        if not candidates:
-            break
-        start = min(candidates)
+# ---- compile-only compatibility stubs for abandoned optional clan APIs ----
+# MC Games uses Hook: none. These classes preserve the original event source without
+# depending on repositories that no longer serve MassiveFactions/yClans artifacts.
+# They MUST NOT be used as functional replacements for those plugins.
+write("src/main/java/com/massivecraft/factions/entity/MFlag.java", r'''package com.massivecraft.factions.entity;
 
-        # If this is an "else if (...)" branch, remove the preceding else too;
-        # otherwise Java would be left with an orphaned 'else'.
-        probe = start - 1
-        while probe >= 0 and source[probe] in " \t":
-            probe -= 1
-        else_end = probe + 1
-        probe -= 1
-        while probe >= 0 and (source[probe].isalpha() or source[probe] == "_"):
-            probe -= 1
-        if source[probe + 1:else_end] == "else":
-            start = probe + 1
+public final class MFlag {
+    public static final MFlag ID_FRIENDLYFIRE = new MFlag();
+    private MFlag() {}
+}
+''')
 
-        brace = source.find("{", start)
-        if brace == -1:
-            break
-        header = source[start:brace]
-        if not any(n in header.lower() for n in needles):
-            i = brace + 1
-            continue
-        depth = 0
-        j = brace
-        in_string = False
-        escape = False
-        while j < len(source):
-            ch = source[j]
-            if in_string:
-                if escape:
-                    escape = False
-                elif ch == "\\":
-                    escape = True
-                elif ch == '"':
-                    in_string = False
-            else:
-                if ch == '"':
-                    in_string = True
-                elif ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        # absorb trailing whitespace, but not an else belonging elsewhere
-                        end = j + 1
-                        while end < len(source) and source[end] in " \t":
-                            end += 1
-                        if end < len(source) and source[end] == "\n":
-                            end += 1
-                        source = source[:start] + source[end:]
-                        i = max(0, start - 1)
-                        break
-            j += 1
-        else:
-            raise RuntimeError("Unbalanced Java block while removing legacy hook")
-    return source
+write("src/main/java/com/massivecraft/factions/entity/Faction.java", r'''package com.massivecraft.factions.entity;
 
-event_files = [
-    "src/main/java/com/ars3ne/eventos/eventos/Sumo.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Killer.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Paintball.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Fight.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Nexus.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Hunter.java",
-    "src/main/java/com/ars3ne/eventos/eventos/BattleRoyale.java",
-    "src/main/java/com/ars3ne/eventos/eventos/Guerra.java",
-]
+public class Faction {
+    public void setFlag(MFlag flag, boolean value) {
+        // Compatibility no-op. MassiveFactions hook is disabled in the MC Games port.
+    }
+}
+''')
 
-for rel in event_files:
-    src = read(rel)
-    src = remove_control_blocks(src, ("massivefactions", "yclans"))
-    # Remove imports for deleted integrations.
-    src = re.sub(r"(?m)^import com\.massivecraft\..*\n", "", src)
-    src = re.sub(r"(?m)^import yclans\..*\n", "", src)
-    # Remove fields/locals whose types or names belong exclusively to deleted hooks.
-    src = re.sub(r"(?m)^\s*private .*massivefactions.*;\s*\n", "", src)
-    src = re.sub(r"(?m)^\s*private .*yclans.*;\s*\n", "", src)
-    src = re.sub(r"(?m)^\s*private .*yClansAPI.*;\s*\n", "", src)
-    # Remove standalone state cleanup lines for maps/objects that no longer exist.
-    src = re.sub(r"(?m)^\s*.*(?:massivefactions_factions|massivefactions_factions_participants|yclans_clans|yclans_clan_participants|yclans_api)\.clear\(\);\s*\n", "", src)
-    write(rel, src)
+write("src/main/java/com/massivecraft/factions/entity/MPlayer.java", r'''package com.massivecraft.factions.entity;
 
-# Main plugin: remove LegendChat, MassiveFactions and yClans setup state.
+import org.bukkit.entity.Player;
+
+public class MPlayer {
+    private static final Faction EMPTY_FACTION = new Faction();
+
+    public static MPlayer get(Player player) {
+        return new MPlayer();
+    }
+
+    public Faction getFaction() {
+        return EMPTY_FACTION;
+    }
+
+    public boolean hasFaction() {
+        return false;
+    }
+}
+''')
+
+write("src/main/java/yclans/model/Clan.java", r'''package yclans.model;
+
+public class Clan {
+    public void setFriendlyFireAlly(boolean value) {
+        // Compatibility no-op. yClans hook is disabled in the MC Games port.
+    }
+
+    public void setFriendlyFireMember(boolean value) {
+        // Compatibility no-op. yClans hook is disabled in the MC Games port.
+    }
+
+    public String getTag() {
+        return "";
+    }
+}
+''')
+
+write("src/main/java/yclans/model/ClanPlayer.java", r'''package yclans.model;
+
+public class ClanPlayer {
+    private final Clan clan = new Clan();
+
+    public boolean hasClan() {
+        return false;
+    }
+
+    public Clan getClan() {
+        return clan;
+    }
+}
+''')
+
+write("src/main/java/yclans/api/yClansAPI.java", r'''package yclans.api;
+
+import org.bukkit.entity.Player;
+import yclans.model.ClanPlayer;
+
+public class yClansAPI {
+    public static final yClansAPI yclansapi = new yClansAPI();
+
+    public ClanPlayer getPlayer(Player player) {
+        return null;
+    }
+}
+''')
+
+# LegendChat is removed cleanly because unlike the clan hooks it is not needed by events.
 main_rel = "src/main/java/com/ars3ne/eventos/aEventos.java"
 main = read(main_rel)
 main = main.replace("import com.ars3ne.eventos.hooks.LegendChatHook;\n", "")
 main = main.replace("    private static final LegendChatHook lc_hook = new LegendChatHook();\n", "")
-main = main.replace("    private boolean hooked_massivefactions = false;\n", "")
-main = main.replace("    private boolean hooked_yclans = false;\n", "")
 main = main.replace("        HandlerList.unregisterAll(lc_hook);\n", "")
 main = re.sub(
     r"""(?s)\s*private boolean setupLegendChat\(\) \{.*?\n    \}\n""",
     "\n",
     main,
 )
-main = re.sub(
-    r"""(?s)\s*private boolean setupMassiveFactions\(\) \{.*?\n    \}\n""",
-    "\n",
-    main,
-)
-main = re.sub(
-    r"""(?s)\s*private boolean setupyClans\(\) \{.*?\n    \}\n""",
-    "\n",
-    main,
-)
 main = main.replace(
-    """        if(!setupSimpleClans() && !setupMassiveFactions() && !setupyClans()) {
-            Bukkit.getConsoleSender().sendMessage("§e[aEventos] §cSimpleClans, MassiveFactions e yClans não encontrados.");
-        }
-        if(!setupLegendChat()) {
+    """        if(!setupLegendChat()) {
             Bukkit.getConsoleSender().sendMessage("§e[aEventos] §cLegendChat não encontrado.");
         }
 """,
-    """        if(!setupSimpleClans()) {
-            Bukkit.getConsoleSender().sendMessage("§e[aEventos] §7SimpleClans não encontrado (hook opcional).");
-        }
-""",
+    ""
 )
-main = re.sub(r"(?m)^\s*public boolean isHookedMassiveFactions\(\).*\n", "", main)
-main = re.sub(r"(?m)^\s*public boolean isHookedyClans\(\).*\n", "", main)
 write(main_rel, main)
 
-# LegendChat hook cannot compile without the abandoned API; remove the source file.
 legend = ROOT / "src/main/java/com/ars3ne/eventos/hooks/LegendChatHook.java"
 if legend.exists():
     legend.unlink()
     print("removed: src/main/java/com/ars3ne/eventos/hooks/LegendChatHook.java")
-
 
 # ---- internal MIT color compatibility layer (replaces abandoned external binary dependency) ----
 color_api = r'''package com.iridium.iridiumcolorapi;
