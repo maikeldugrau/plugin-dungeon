@@ -60,6 +60,11 @@ pom = pom.replace("""        <repository>
             <url>https://ci.2lstudios.dev/plugin/repository/everything/</url>
         </repository>
 """, "")
+pom = pom.replace("""        <repository>
+            <id>savagelabs</id>
+            <url>https://nexus.savagelabs.net/repository/maven-releases/</url>
+        </repository>
+""", "")
 pom = pom.replace("<version>8.7.0</version>", "<version>13.7.1</version>", 1)
 pom = pom.replace("<version>3.2.4</version>", "<version>3.6.1</version>", 1)
 
