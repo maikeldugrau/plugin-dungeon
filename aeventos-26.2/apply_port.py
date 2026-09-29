@@ -83,12 +83,634 @@ if "<artifactId>maven-compiler-plugin</artifactId>" not in pom:
         1,
     )
 
+
+# Modernize dependencies that still have supported public repositories.
+pom = pom.replace("<version>1.16-R0.5-SNAPSHOT</version>", "<version>1.21-R0.4</version>", 1)
+pom = pom.replace("<version>2.10.9</version>", "<version>2.11.7</version>", 1)
+
+# IridiumColorAPI moved to its own public repository.
+if "<id>iridiumdevelopment</id>" not in pom:
+    pom = pom.replace(
+        "<repositories>",
+        """<repositories>
+        <repository>
+            <id>iridiumdevelopment</id>
+            <url>https://nexus.iridiumdevelopment.net/repository/maven-releases/</url>
+        </repository>""",
+        1,
+    )
+pom = pom.replace("<version>1.0.6</version>", "<version>LATEST</version>", 1)
+
+# Legacy optional integrations that are no longer publicly resolvable and are
+# not used by MC Games. SimpleClans is retained because its API still resolves.
+for group, artifact in [
+    ("br.com.devpaulo", "legendchat"),
+    ("com.massivecraft", "Factions"),
+    ("com.massivecraft", "MassiveCore"),
+    ("yClans", "yClans"),
+]:
+    pattern = re.compile(
+        rf"""<dependency>\s*
+\s*<groupId>{re.escape(group)}</groupId>\s*
+\s*<artifactId>{re.escape(artifact)}</artifactId>\s*
+.*?\s*</dependency>""",
+        re.MULTILINE | re.DOTALL,
+    )
+    pom = pattern.sub("", pom)
+
 write("pom.xml", pom)
+
+# ---- remove unsupported legacy hook code while preserving SimpleClans ----
+def remove_if_blocks(source: str, needles):
+    """Remove complete Java if-blocks whose condition/header contains a needle."""
+    i = 0
+    while i < len(source):
+        pos = source.find("if(", i)
+        pos2 = source.find("if (", i)
+        candidates = [p for p in (pos, pos2) if p != -1]
+        if not candidates:
+            break
+        start = min(candidates)
+        brace = source.find("{", start)
+        if brace == -1:
+            break
+        header = source[start:brace]
+        if not any(n in header.lower() for n in needles):
+            i = brace + 1
+            continue
+        depth = 0
+        j = brace
+        in_string = False
+        escape = False
+        while j < len(source):
+            ch = source[j]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+            else:
+                if ch == '"':
+                    in_string = True
+                elif ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        # absorb trailing whitespace, but not an else belonging elsewhere
+                        end = j + 1
+                        while end < len(source) and source[end] in " \t":
+                            end += 1
+                        if end < len(source) and source[end] == "\n":
+                            end += 1
+                        source = source[:start] + source[end:]
+                        i = max(0, start - 1)
+                        break
+            j += 1
+        else:
+            raise RuntimeError("Unbalanced Java block while removing legacy hook")
+    return source
+
+event_files = [
+    "src/main/java/com/ars3ne/eventos/eventos/Sumo.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Killer.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Paintball.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Fight.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Nexus.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Hunter.java",
+    "src/main/java/com/ars3ne/eventos/eventos/BattleRoyale.java",
+    "src/main/java/com/ars3ne/eventos/eventos/Guerra.java",
+]
+
+for rel in event_files:
+    src = read(rel)
+    src = remove_if_blocks(src, ("massivefactions", "yclans"))
+    # Remove imports for deleted integrations.
+    src = re.sub(r"(?m)^import com\.massivecraft\..*\n", "", src)
+    src = re.sub(r"(?m)^import yclans\..*\n", "", src)
+    # Remove fields/locals whose types or names belong exclusively to deleted hooks.
+    src = re.sub(r"(?m)^\s*private .*massivefactions.*;\s*\n", "", src)
+    src = re.sub(r"(?m)^\s*private .*yclans.*;\s*\n", "", src)
+    src = re.sub(r"(?m)^\s*private .*yClansAPI.*;\s*\n", "", src)
+    # Remove any now-orphaned explicit yClans model declarations.
+    src = re.sub(r"(?m)^\s*.*yclans\.model\..*;\s*\n", "", src)
+    write(rel, src)
+
+# Main plugin: remove LegendChat, MassiveFactions and yClans setup state.
+main_rel = "src/main/java/com/ars3ne/eventos/aEventos.java"
+main = read(main_rel)
+main = main.replace("import com.ars3ne.eventos.hooks.LegendChatHook;\n", "")
+main = main.replace("    private static final LegendChatHook lc_hook = new LegendChatHook();\n", "")
+main = main.replace("    private boolean hooked_massivefactions = false;\n", "")
+main = main.replace("    private boolean hooked_yclans = false;\n", "")
+main = main.replace("        HandlerList.unregisterAll(lc_hook);\n", "")
+main = re.sub(
+    r"""(?s)\s*private boolean setupLegendChat\(\) \{.*?\n    \}\n""",
+    "\n",
+    main,
+)
+main = re.sub(
+    r"""(?s)\s*private boolean setupMassiveFactions\(\) \{.*?\n    \}\n""",
+    "\n",
+    main,
+)
+main = re.sub(
+    r"""(?s)\s*private boolean setupyClans\(\) \{.*?\n    \}\n""",
+    "\n",
+    main,
+)
+main = main.replace(
+    """        if(!setupSimpleClans() && !setupMassiveFactions() && !setupyClans()) {
+            Bukkit.getConsoleSender().sendMessage("§e[aEventos] §cSimpleClans, MassiveFactions e yClans não encontrados.");
+        }
+        if(!setupLegendChat()) {
+            Bukkit.getConsoleSender().sendMessage("§e[aEventos] §cLegendChat não encontrado.");
+        }
+""",
+    """        if(!setupSimpleClans()) {
+            Bukkit.getConsoleSender().sendMessage("§e[aEventos] §7SimpleClans não encontrado (hook opcional).");
+        }
+""",
+)
+main = re.sub(r"(?m)^\s*public boolean isHookedMassiveFactions\(\).*\n", "", main)
+main = re.sub(r"(?m)^\s*public boolean isHookedyClans\(\).*\n", "", main)
+write(main_rel, main)
+
+# LegendChat hook cannot compile without the abandoned API; remove the source file.
+legend = ROOT / "src/main/java/com/ars3ne/eventos/hooks/LegendChatHook.java"
+if legend.exists():
+    legend.unlink()
+    print("removed: src/main/java/com/ars3ne/eventos/hooks/LegendChatHook.java")
+
 
 # ---- plugin metadata ----
 plugin_yml = read("src/main/resources/plugin.yml")
 plugin_yml = re.sub(r"(?m)^api-version:\s*.*$", "api-version: '26.2'", plugin_yml)
+plugin_yml = plugin_yml.replace(
+    "softdepend: [LegendChat, SimpleClans, Vault, MassiveFactions, yClans, PlaceholderAPI]",
+    "softdepend: [SimpleClans, Vault, PlaceholderAPI]"
+)
 write("src/main/resources/plugin.yml", plugin_yml)
+
+config_rel = "src/main/resources/config.yml"
+config = read(config_rel)
+config = re.sub(
+    r'(?m)^Hook:.*
+
+# ---- Frog: remove pre-flattening byte data and restore exact BlockData ----
+frog = r'''/*
+ *
+ * This file is part of aEventos, licensed under the MIT License.
+ *
+ * Copyright (c) Ars3ne
+ * Copyright (c) contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
+package com.ars3ne.eventos.eventos;
+
+import com.ars3ne.eventos.aEventos;
+import com.ars3ne.eventos.api.Evento;
+import com.ars3ne.eventos.listeners.eventos.FrogListener;
+import com.ars3ne.eventos.utils.Cuboid;
+import com.iridium.iridiumcolorapi.IridiumColorAPI;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+public class Frog extends Evento {
+
+    private final YamlConfiguration config;
+    private final FrogListener listener = new FrogListener();
+
+    /*
+     * Paper 26.2-only implementation:
+     * - BlockData replaces the removed legacy byte data API.
+     * - The complete arena is snapshotted and restored on stop, preventing
+     *   AIR/SNOW blocks from being permanently modified by an event.
+     */
+    private final Map<Block, BlockData> originalBlocks = new HashMap<>();
+    private final Map<Block, BlockData> activeBlocks = new HashMap<>();
+    private final Map<Block, BlockData> deletedBlocks = new HashMap<>();
+    private final Set<Material> remainingMaterials = new LinkedHashSet<>();
+
+    private final Cuboid cuboid;
+    private Block woolBlock;
+
+    private final int start;
+    private final int time;
+    private final int snowTime;
+    private int task = -1;
+    private boolean levelHappening;
+    private final Random random = new Random();
+
+    public Frog(YamlConfiguration config) {
+        super(config);
+
+        this.config = config;
+        this.start = config.getInt("Evento.Start");
+        this.time = config.getInt("Evento.Time");
+        this.snowTime = config.getInt("Evento.Snow");
+
+        World world = aEventos.getInstance().getServer().getWorld(config.getString("Locations.Pos1.world"));
+        if (world == null) {
+            throw new IllegalArgumentException("Mundo do evento Frog não encontrado: " + config.getString("Locations.Pos1.world"));
+        }
+
+        Location pos1 = new Location(world,
+                config.getDouble("Locations.Pos1.x"),
+                config.getDouble("Locations.Pos1.y"),
+                config.getDouble("Locations.Pos1.z"));
+        Location pos2 = new Location(world,
+                config.getDouble("Locations.Pos2.x"),
+                config.getDouble("Locations.Pos2.y"),
+                config.getDouble("Locations.Pos2.z"));
+        this.cuboid = new Cuboid(pos1, pos2);
+    }
+
+    @Override
+    public void start() {
+        aEventos.getInstance().getServer().getPluginManager().registerEvents(listener, aEventos.getInstance());
+        listener.setEvento();
+
+        originalBlocks.clear();
+        activeBlocks.clear();
+        deletedBlocks.clear();
+        remainingMaterials.clear();
+        woolBlock = null;
+        levelHappening = false;
+
+        for (Block block : cuboid.getBlocks()) {
+            originalBlocks.put(block, block.getBlockData().clone());
+
+            if (block.getType() != Material.AIR && block.getType() != Material.SNOW_BLOCK) {
+                if (block.getType() == Material.RED_WOOL) {
+                    continue;
+                }
+
+                activeBlocks.put(block, block.getBlockData().clone());
+                remainingMaterials.add(block.getType());
+            } else {
+                block.setType(Material.SNOW_BLOCK, false);
+            }
+        }
+
+        aEventos.getInstance().getServer().getScheduler().scheduleSyncDelayedTask(aEventos.getInstance(), () -> {
+            if (!isHappening()) {
+                return;
+            }
+
+            for (Block block : cuboid.getBlocks()) {
+                if (block.getType() == Material.SNOW_BLOCK) {
+                    block.setType(Material.AIR, false);
+                }
+            }
+
+            task = Bukkit.getScheduler().scheduleSyncRepeatingTask(aEventos.getInstance(), () -> {
+                if (!isHappening()) {
+                    if (task != -1) {
+                        Bukkit.getScheduler().cancelTask(task);
+                    }
+                    return;
+                }
+
+                if (!levelHappening) {
+                    frog();
+                }
+            }, (time + snowTime) * 20L, 20L);
+
+        }, start * 20L);
+    }
+
+    @Override
+    public void winner(Player p) {
+        List<String> broadcastMessages = config.getStringList("Messages.Winner");
+        for (String s : broadcastMessages) {
+            aEventos.getInstance().getServer().broadcastMessage(
+                    IridiumColorAPI.process(
+                            s.replace("&", "§")
+                                    .replace("@winner", p.getName())
+                                    .replace("@name", config.getString("Evento.Title"))
+                    )
+            );
+        }
+
+        this.setWinner(p);
+        this.stop();
+
+        List<String> commands = config.getStringList("Rewards.Commands");
+        for (String s : commands) {
+            executeConsoleCommand(p, s.replace("@winner", p.getName()));
+        }
+    }
+
+    @Override
+    public void stop() {
+        if (task != -1) {
+            Bukkit.getScheduler().cancelTask(task);
+            task = -1;
+        }
+
+        for (Map.Entry<Block, BlockData> entry : originalBlocks.entrySet()) {
+            entry.getKey().setBlockData(entry.getValue(), false);
+        }
+
+        originalBlocks.clear();
+        activeBlocks.clear();
+        deletedBlocks.clear();
+        remainingMaterials.clear();
+        woolBlock = null;
+        levelHappening = false;
+
+        HandlerList.unregisterAll(listener);
+        this.removePlayers();
+    }
+
+    private void frog() {
+        if (!isHappening()) {
+            return;
+        }
+
+        levelHappening = true;
+
+        if (remainingMaterials.size() > 1) {
+            List<Material> materials = new ArrayList<>(remainingMaterials);
+            Material materialRemove = materials.get(random.nextInt(materials.size()));
+
+            for (Map.Entry<Block, BlockData> entry : new ArrayList<>(activeBlocks.entrySet())) {
+                Block block = entry.getKey();
+                if (block.getType() == materialRemove) {
+                    deletedBlocks.putIfAbsent(block, entry.getValue().clone());
+                    block.setType(Material.SNOW_BLOCK, false);
+                }
+            }
+
+            aEventos.getInstance().getServer().getScheduler().scheduleSyncDelayedTask(aEventos.getInstance(), () -> {
+                if (!isHappening()) {
+                    return;
+                }
+
+                remainingMaterials.remove(materialRemove);
+
+                for (Block block : new ArrayList<>(deletedBlocks.keySet())) {
+                    if (block != woolBlock) {
+                        block.setType(Material.AIR, false);
+                    }
+                    activeBlocks.remove(block);
+                }
+            }, snowTime * 20L);
+
+            aEventos.getInstance().getServer().getScheduler().runTaskLater(
+                    aEventos.getInstance(),
+                    () -> levelHappening = false,
+                    (time + snowTime) * 20L
+            );
+
+        } else {
+            if (deletedBlocks.isEmpty()) {
+                levelHappening = false;
+                return;
+            }
+
+            List<Block> deletedBlocksArray = new ArrayList<>(deletedBlocks.keySet());
+            woolBlock = deletedBlocksArray.get(random.nextInt(deletedBlocksArray.size()));
+            woolBlock.setType(Material.RED_WOOL, false);
+            listener.setWool();
+
+            for (Block block : deletedBlocks.keySet()) {
+                if (block != woolBlock) {
+                    block.setType(Material.SNOW_BLOCK, false);
+                }
+            }
+
+            List<String> woolMessages = config.getStringList("Messages.Wool");
+            for (Player player : getPlayers()) {
+                for (String s : woolMessages) {
+                    player.sendMessage(
+                            IridiumColorAPI.process(
+                                    s.replace("&", "§").replace("@name", config.getString("Evento.Title"))
+                            )
+                    );
+                }
+            }
+
+            for (Player player : getSpectators()) {
+                for (String s : woolMessages) {
+                    player.sendMessage(
+                            IridiumColorAPI.process(
+                                    s.replace("&", "§").replace("@name", config.getString("Evento.Title"))
+                            )
+                    );
+                }
+            }
+        }
+    }
+
+    public Block getWoolBlock() {
+        return woolBlock;
+    }
+}
+'''
+write("src/main/java/com/ars3ne/eventos/eventos/Frog.java", frog)
+
+# ---- SimpleItemParser: public Paper profiles, no GameProfile reflection ----
+parser = r'''/*
+ *
+ * This file is part of aEventos, licensed under the MIT License.
+ *
+ * Copyright (c) Ars3ne
+ * Copyright (c) contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
+package com.ars3ne.eventos.inventory.utils;
+
+import com.cryptomorin.xseries.XMaterial;
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
+import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+public class SimpleItemParser {
+
+    public static ItemStack parse(ConfigurationSection section, Map<String, String> placeholders) {
+        String configuredMaterial = section.getString("Material");
+        XMaterial xMaterial = XMaterial.matchXMaterial(configuredMaterial)
+                .orElseThrow(() -> new IllegalArgumentException("Material inválido no menu: " + configuredMaterial));
+
+        ItemStack item = xMaterial.parseItem();
+        if (item == null) {
+            throw new IllegalArgumentException("Não foi possível criar o material do menu: " + configuredMaterial);
+        }
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+
+        String configuredName = section.getString("Name");
+        if (configuredName != null) {
+            String name = applyPlaceholders(configuredName, placeholders);
+            meta.setDisplayName(name.replace("&", "§"));
+        }
+
+        List<String> configuredLore = section.getStringList("Lore");
+        if (!configuredLore.isEmpty()) {
+            List<String> lore = new ArrayList<>();
+            for (String line : configuredLore) {
+                lore.add(applyPlaceholders(line, placeholders).replace("&", "§"));
+            }
+            meta.setLore(lore);
+        }
+
+        if (section.getBoolean("Glow")) {
+            meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
+
+        item.setItemMeta(meta);
+
+        if (xMaterial == XMaterial.PLAYER_HEAD) {
+            SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
+            if (skullMeta == null) {
+                return item;
+            }
+
+            String headData = applyPlaceholders(section.getString("Head data", ""), placeholders);
+
+            if (section.getBoolean("Custom head")) {
+                setCustomTexture(skullMeta, "http://textures.minecraft.net/texture/" + headData);
+            } else if (!headData.isBlank()) {
+                skullMeta.setOwningPlayer(Bukkit.getOfflinePlayer(headData));
+            }
+
+            item.setItemMeta(skullMeta);
+        }
+
+        return item;
+    }
+
+    private static String applyPlaceholders(String text, Map<String, String> placeholders) {
+        if (text == null || placeholders == null) {
+            return text == null ? "" : text;
+        }
+
+        String result = text;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            result = result.replace(entry.getKey(), entry.getValue());
+        }
+        return result;
+    }
+
+    private static void setCustomTexture(SkullMeta meta, String url) {
+        PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID());
+        String json = String.format("{textures:{SKIN:{url:\"%s\"}}}", url);
+        String data = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+        profile.setProperty(new ProfileProperty("textures", data));
+        meta.setPlayerProfile(profile);
+    }
+}
+'''
+write("src/main/java/com/ars3ne/eventos/inventory/utils/SimpleItemParser.java", parser)
+
+# Modernize the top menu's player-head owner assignment. This is API-safe on 26.2.
+top_path = "src/main/java/com/ars3ne/eventos/inventory/EventoTopInventory.java"
+top = read(top_path)
+top = top.replace("meta.setOwner(p.getName());", "meta.setOwningPlayer(p);")
+write(top_path, top)
+
+# A small source marker for operators.
+readme = ROOT / "MCGAMES-26.2-PORT.md"
+readme.write_text(
+    """# aEventos — MC Games Paper 26.2 port
+
+Base: Ars3ne/aEventos 1.5.1 (MIT)
+
+Port changes:
+- Paper API 26.2
+- Java 25
+- XSeries 13.7.1
+- plugin.yml api-version 26.2
+- Frog migrated from legacy material bytes to BlockData
+- Frog now restores the complete arena snapshot on stop
+- custom player heads migrated away from GameProfile reflection
+- glow enchant uses Bukkit Enchantment.UNBREAKING
+- player-head owner assignment uses OfflinePlayer API
+
+This is a compatibility port. Validate every event on a staging server before production use.
+""",
+    encoding="utf-8",
+)
+print("port patch complete")
+,
+    'Hook: "none" # Port MC Games 26.2: use "simpleclans" only if SimpleClans is installed.',
+    config,
+)
+write(config_rel, config)
 
 # ---- Frog: remove pre-flattening byte data and restore exact BlockData ----
 frog = r'''/*
