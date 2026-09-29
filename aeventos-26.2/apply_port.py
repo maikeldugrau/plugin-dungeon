@@ -120,6 +120,19 @@ def remove_if_blocks(source: str, needles):
         if not candidates:
             break
         start = min(candidates)
+
+        # If this is an "else if (...)" branch, remove the preceding else too;
+        # otherwise Java would be left with an orphaned 'else'.
+        probe = start - 1
+        while probe >= 0 and source[probe] in " \t":
+            probe -= 1
+        else_end = probe + 1
+        probe -= 1
+        while probe >= 0 and (source[probe].isalpha() or source[probe] == "_"):
+            probe -= 1
+        if source[probe + 1:else_end] == "else":
+            start = probe + 1
+
         brace = source.find("{", start)
         if brace == -1:
             break
