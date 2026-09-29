@@ -54,6 +54,12 @@ pom, count = spigot_dep.subn(
 if count != 1:
     raise SystemExit("Could not replace the legacy Spigot dependency in pom.xml")
 
+# Remove a dead Maven repository that causes dependency resolution to abort.
+pom = pom.replace("""        <repository>
+            <id>2lstudios</id>
+            <url>https://ci.2lstudios.dev/plugin/repository/everything/</url>
+        </repository>
+""", "")
 pom = pom.replace("<version>8.7.0</version>", "<version>13.7.1</version>", 1)
 pom = pom.replace("<version>3.2.4</version>", "<version>3.6.1</version>", 1)
 
