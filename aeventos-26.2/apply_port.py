@@ -110,13 +110,17 @@ for group, artifact in [
 write("pom.xml", pom)
 
 # ---- remove unsupported legacy hook code while preserving SimpleClans ----
-def remove_if_blocks(source: str, needles):
-    """Remove complete Java if-blocks whose condition/header contains a needle."""
+def remove_control_blocks(source: str, needles):
+    """Remove complete Java if/for blocks whose header contains a legacy-hook needle."""
     i = 0
     while i < len(source):
-        pos = source.find("if(", i)
-        pos2 = source.find("if (", i)
-        candidates = [p for p in (pos, pos2) if p != -1]
+        positions = [
+            source.find("if(", i),
+            source.find("if (", i),
+            source.find("for(", i),
+            source.find("for (", i),
+        ]
+        candidates = [p for p in positions if p != -1]
         if not candidates:
             break
         start = min(candidates)
@@ -188,7 +192,7 @@ event_files = [
 
 for rel in event_files:
     src = read(rel)
-    src = remove_if_blocks(src, ("massivefactions", "yclans"))
+    src = remove_control_blocks(src, ("massivefactions", "yclans"))
     # Remove imports for deleted integrations.
     src = re.sub(r"(?m)^import com\.massivecraft\..*\n", "", src)
     src = re.sub(r"(?m)^import yclans\..*\n", "", src)
@@ -196,8 +200,8 @@ for rel in event_files:
     src = re.sub(r"(?m)^\s*private .*massivefactions.*;\s*\n", "", src)
     src = re.sub(r"(?m)^\s*private .*yclans.*;\s*\n", "", src)
     src = re.sub(r"(?m)^\s*private .*yClansAPI.*;\s*\n", "", src)
-    # Remove any now-orphaned explicit yClans model declarations.
-    src = re.sub(r"(?m)^\s*.*yclans\.model\..*;\s*\n", "", src)
+    # Remove standalone state cleanup lines for maps/objects that no longer exist.
+    src = re.sub(r"(?m)^\s*.*(?:massivefactions_factions|massivefactions_factions_participants|yclans_clans|yclans_clan_participants|yclans_api)\.clear\(\);\s*\n", "", src)
     write(rel, src)
 
 # Main plugin: remove LegendChat, MassiveFactions and yClans setup state.
