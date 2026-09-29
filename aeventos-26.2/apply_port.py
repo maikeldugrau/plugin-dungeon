@@ -257,7 +257,11 @@ write("src/main/resources/plugin.yml", plugin_yml)
 config_rel = "src/main/resources/config.yml"
 config = read(config_rel)
 config = re.sub(
-    r'(?m)^Hook:.*
+    r"(?m)^Hook:.*$",
+    'Hook: "none" # Port MC Games 26.2: use "simpleclans" only if SimpleClans is installed.',
+    config,
+)
+write(config_rel, config)
 
 # ---- Frog: remove pre-flattening byte data and restore exact BlockData ----
 frog = r'''/*
