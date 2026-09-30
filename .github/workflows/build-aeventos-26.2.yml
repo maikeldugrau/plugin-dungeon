@@ -1,0 +1,47 @@
+name: Build aEventos 26.2
+
+on:
+  push:
+    branches: [ "aeventos-26.2-build" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build harness
+        uses: actions/checkout@v4
+
+      - name: Checkout official aEventos
+        uses: actions/checkout@v4
+        with:
+          repository: Ars3ne/aEventos
+          ref: master
+          path: aEventos
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: aEventos/pom.xml
+
+      - name: Apply Paper 26.2 port
+        run: python3 tools/port-aeventos.py
+
+      - name: Build
+        working-directory: aEventos
+        run: mvn -B -U clean package -DskipTests
+
+      - name: Collect outputs
+        run: |
+          mkdir -p dist
+          cp aEventos/target/*.jar dist/ || true
+          (cd aEventos && zip -qr ../dist/aEventos-MCGames-26.2-source.zip . -x "target/*" ".git/*")
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: aEventos-MCGames-26.2
+          path: dist/*
