@@ -849,3 +849,112 @@ print("port patch complete")
 # build trigger 2026-09-30-3
 
 # build trigger ready PR
+
+
+# ---- Paper 26.2 compatibility pass 2 ----
+# Remove the standalone BungeeCord entry point from the Paper-only artifact.
+bungee_main = ROOT / "src/main/java/com/ars3ne/eventos/bungeecord/aEventosBungeecord.java"
+if bungee_main.exists():
+    bungee_main.unlink()
+    print("removed: src/main/java/com/ars3ne/eventos/bungeecord/aEventosBungeecord.java")
+
+# Bukkit/Paper enum and API aliases removed since the original 1.8-era implementation.
+modern_replacements = {
+    "Enchantment.ARROW_INFINITE": "Enchantment.INFINITY",
+    "Enchantment.DURABILITY": "Enchantment.UNBREAKING",
+    "PotionEffectType.JUMP": "PotionEffectType.JUMP_BOOST",
+    "PotionEffectType.SLOW": "PotionEffectType.SLOWNESS",
+    "EntityType.ENDER_CRYSTAL": "EntityType.END_CRYSTAL",
+    "EntityType.LIGHTNING": "EntityType.LIGHTNING_BOLT",
+    "Material.STATIONARY_WATER": "Material.WATER",
+    "XMaterial.supports(13)": "true",
+}
+
+for java in ROOT.glob("src/main/java/**/*.java"):
+    src = java.read_text(encoding="utf-8")
+    updated = src
+    for old, new in modern_replacements.items():
+        updated = updated.replace(old, new)
+    if updated != src:
+        java.write_text(updated, encoding="utf-8")
+        print(f"modernized: {java.relative_to(ROOT)}")
+
+# The original legacy converter translated pre-flattening numeric material IDs.
+# Paper 26.2 and current XSeries no longer expose that numeric-ID bridge.
+# Keep the two public entry points as safe no-ops; modern configs are handled by
+# SerializerConverter immediately afterwards by ConfigUpdater.
+write("src/main/java/com/ars3ne/eventos/utils/converters/config/LegacySerializerConverter.java", r"""package com.ars3ne.eventos.utils.converters.config;
+
+import org.bukkit.configuration.file.YamlConfiguration;
+
+/**
+ * Paper 26.2 compatibility shim.
+ *
+ * aEventos 1.5.1 contained a converter for Minecraft 1.8 numeric material IDs.
+ * Numeric material IDs no longer exist in the modern API. This port targets
+ * Paper 26.2 only, so current named-material configurations pass through to the
+ * normal SerializerConverter.
+ */
+public final class LegacySerializerConverter {
+    private LegacySerializerConverter() {}
+
+    public static void convertFight(YamlConfiguration config) {
+        // Intentionally no-op on Paper 26.2.
+    }
+
+    public static void convertSpleef(YamlConfiguration config) {
+        // Intentionally no-op on Paper 26.2.
+    }
+}
+""")
+
+# Compile-only MassiveFactions shim needs the methods referenced by Guerra.
+write("src/main/java/com/massivecraft/factions/entity/Faction.java", r"""package com.massivecraft.factions.entity;
+
+public class Faction {
+    public void setFlag(MFlag flag, boolean value) {
+        // Compatibility no-op. MassiveFactions hook is disabled in the MC Games port.
+    }
+
+    public String getName() {
+        return "";
+    }
+}
+""")
+
+write("src/main/java/com/massivecraft/factions/entity/MPlayer.java", r"""package com.massivecraft.factions.entity;
+
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+
+public class MPlayer {
+    private static final Faction EMPTY_FACTION = new Faction();
+
+    public static MPlayer get(Player player) {
+        return new MPlayer();
+    }
+
+    public static MPlayer get(OfflinePlayer player) {
+        return new MPlayer();
+    }
+
+    public Faction getFaction() {
+        return EMPTY_FACTION;
+    }
+
+    public boolean hasFaction() {
+        return false;
+    }
+}
+""")
+
+# Fix an impossible direct OfflinePlayer -> Player cast in the disabled yClans path.
+guerra_rel = "src/main/java/com/ars3ne/eventos/eventos/Guerra.java"
+guerra = read(guerra_rel)
+guerra = guerra.replace(
+    "yclans_api.getPlayer((Player) p)",
+    "yclans_api.getPlayer(p.getPlayer())"
+)
+write(guerra_rel, guerra)
+
+print("Paper 26.2 compatibility pass 2 complete")
