@@ -1,0 +1,53 @@
+name: TEMP aEventos 26.2 Build
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-aeventos:
+    if: github.head_ref == 'aeventos-26.2-build'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Clone official aEventos
+        run: git clone --depth 1 https://github.com/Ars3ne/aEventos.git aeventos-src
+
+      - name: Apply Paper 26.2 port
+        run: python3 aeventos-26.2/apply_port.py aeventos-src
+
+      - name: Build
+        working-directory: aeventos-src
+        run: mvn -B -U -DskipTests clean package
+
+      - name: Package source
+        if: always()
+        run: zip -qr aEventos-MCGames-26.2-source.zip aeventos-src -x 'aeventos-src/.git/*' 'aeventos-src/target/*'
+
+      - name: Upload source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aEventos-MCGames-26.2-source
+          path: aEventos-MCGames-26.2-source.zip
+
+      - name: Upload JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aEventos-MCGames-26.2
+          path: aeventos-src/target/*.jar
+          if-no-files-found: error
