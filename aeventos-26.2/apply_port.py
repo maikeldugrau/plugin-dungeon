@@ -66,7 +66,7 @@ pom = pom.replace("""        <repository>
         </repository>
 """, "")
 pom = pom.replace("<version>8.7.0</version>", "<version>13.7.1</version>", 1)
-pom = pom.replace("<version>3.2.4</version>", "<version>3.6.1</version>", 1)
+pom = pom.replace("<version>3.2.4</version>", "<version>3.6.2</version>", 1)
 
 if "<artifactId>maven-compiler-plugin</artifactId>" not in pom:
     pom = pom.replace(
@@ -958,3 +958,5 @@ guerra = guerra.replace(
 write(guerra_rel, guerra)
 
 print("Paper 26.2 compatibility pass 2 complete")
+
+# maven-shade-plugin 3.6.2 supports Java 25 bytecode
