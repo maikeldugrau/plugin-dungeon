@@ -38,6 +38,9 @@ jobs:
       - name: Apply Paper 26.2 port
         run: python3 aeventos-26.2/apply_port.py aeventos-src
 
+      - name: Apply safety corrections
+        run: python3 aeventos-26.2/fix_safety.py aeventos-src
+
       - name: Build
         working-directory: aeventos-src
         run: mvn -B -U -DskipTests clean package
