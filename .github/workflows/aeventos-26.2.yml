@@ -47,6 +47,9 @@ jobs:
       - name: Install direct event commands
         run: python3 aeventos-26.2/fix_direct_commands.py aeventos-src
 
+      - name: Fix clickable interactions and chat isolation
+        run: python3 aeventos-26.2/fix_interaction_commands.py aeventos-src
+
       - name: Build
         working-directory: aeventos-src
         run: mvn -B -U -DskipTests clean package
