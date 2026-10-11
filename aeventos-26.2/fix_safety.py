@@ -371,4 +371,84 @@ s=s.replace("UpdateChecker: true", "UpdateChecker: false")
 s=s.replace("AutoStart:\n  Enabled: true", "AutoStart:\n  Enabled: false")
 write(p,s)
 
+
+# Preserve the exact original block states for player placement and fluid spread
+# rather than replacing everything touched by an event with AIR.
+p=BASE+"eventos/BattleRoyale.java"
+s=read(p)
+s=require_replace(s,
+    "    private final List<Block> blocks_to_remove = new ArrayList<>();",
+    """    private final List<Block> blocks_to_remove = new ArrayList<>();
+    private final java.util.Map<Block, org.bukkit.block.BlockState> originalPlacedBlocks = new java.util.LinkedHashMap<>();""",
+    "BattleRoyale original blocks map")
+s=require_replace(s,
+"""        for(Block block: blocks_to_remove) {
+            block.setType(Material.AIR);
+        }
+        blocks_to_remove.clear();""",
+"""        for(Block block: blocks_to_remove) {
+            org.bukkit.block.BlockState original = originalPlacedBlocks.get(block);
+            if(original != null) original.update(true, false);
+            else block.setType(Material.AIR, false);
+        }
+        blocks_to_remove.clear();
+        originalPlacedBlocks.clear();""",
+"BattleRoyale restore blockstates")
+# Add a package-visible function before the last class brace.
+idx=s.rfind("}")
+s=s[:idx]+"""
+    public void rememberBlock(org.bukkit.block.BlockState original) {
+        if (original != null) originalPlacedBlocks.putIfAbsent(original.getBlock(), original);
+    }
+"""+s[idx:]
+write(p,s)
+
+p=BASE+"listeners/eventos/BattleRoyaleListener.java"
+s=read(p)
+s=require_replace(s,
+"""        evento.getBlocksToRemove().add(e.getBlockPlaced());""",
+"""        evento.rememberBlock(e.getBlockReplacedState());
+        evento.getBlocksToRemove().add(e.getBlockPlaced());""",
+"BattleRoyaleListener block placement")
+s=require_replace(s,
+"""        evento.getBlocksToRemove().add(e.getBlockClicked().getRelative(e.getBlockFace()));""",
+"""        Block target = e.getBlockClicked().getRelative(e.getBlockFace());
+        evento.rememberBlock(target.getState());
+        evento.getBlocksToRemove().add(target);""",
+"BattleRoyaleListener bucket placement")
+s=require_replace(s,
+"""        if(!evento.getBlocksToRemove().contains(e.getBlock()) && !evento.getBlocksToRemove().contains(e.getToBlock())) return;
+
+        Block to1""",
+"""        if(!evento.getBlocksToRemove().contains(e.getBlock()) && !evento.getBlocksToRemove().contains(e.getToBlock())) return;
+        evento.rememberBlock(e.getToBlock().getState());
+
+        Block to1""",
+"BattleRoyaleListener fluid flow")
+write(p,s)
+
+# Bound the number of blocks scanned or snapshotted in the Frog arena.
+p=BASE+"manager/EventosManager.java"
+s=read(p)
+needle="""        if (require_pos) {
+            String p1 = config.getString("Locations.Pos1.world");"""
+sub="""        if (kind == EventoType.FROG) {
+            long dx = Math.abs(config.getLong("Locations.Pos1.x") - config.getLong("Locations.Pos2.x")) + 1;
+            long dy = Math.abs(config.getLong("Locations.Pos1.y") - config.getLong("Locations.Pos2.y")) + 1;
+            long dz = Math.abs(config.getLong("Locations.Pos1.z") - config.getLong("Locations.Pos2.z")) + 1;
+            // Bound synchronous block scans and in-memory BlockData snapshots.
+            if (dx <= 0 || dy <= 0 || dz <= 0 ||
+                    (dx > 75000 || dy > 75000 || dz > 75000) ||
+                    (dx * dy * dz > 75000)) {
+                Bukkit.getLogger().warning("[aEventos] Frog arena exceeds 75000 blocks, event denied for TPS safety.");
+                return false;
+            }
+        }
+        if (require_pos) {
+            String p1 = config.getString("Locations.Pos1.world");"""
+s=require_replace(s,needle,sub,"Frog arena max size")
+write(p,s)
+
+print("MC Games arena safety fixes applied")
+
 print("MC Games safety fixes applied")
