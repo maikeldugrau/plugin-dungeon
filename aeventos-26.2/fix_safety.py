@@ -200,14 +200,13 @@ s = require_replace(s,
     "Evento.join capture")
 
 # The three inventory-only restore blocks are replaced by complete state recovery.
-pattern = re.compile(r"""(?m)^([ \t]*)if\(this\.empty_inventory\) \{\s*
-(?P<actor>player|p)\.getInventory\(\)\.clear\(\);\s*
+pattern = re.compile(r"""if\(this\.empty_inventory\) \{\s*
+(?:player|p)\.getInventory\(\)\.clear\(\);\s*
 if\(aEventos\.getInstance\(\)\.getConfig\(\)\.getBoolean\("Save inventory"\)\) \{\s*
-if\((?P=actor)\.isDead\(\)\) (?P=actor)\.spigot\(\)\.respawn\(\);\s*
-InventorySerializer\.deserialize\((?P=actor), this\.identifier, (?:false|leaved)\);\s*
-\}\s*
-\}""", re.MULTILINE)
-s,n = pattern.subn(lambda m: m.group(1)+"EventPlayerStateManager.restore("+m.group("actor")+", this.empty_inventory);",s)
+if\((?:player|p)\.isDead\(\)\) (?:player|p)\.spigot\(\)\.respawn\(\);\s*
+InventorySerializer\.deserialize\((?:player|p), this\.identifier, (?:false|leaved)\);\s*
+\}\s*\}""", re.MULTILINE)
+s,n = pattern.subn(lambda m: "EventPlayerStateManager.restore(" + ("player" if "player.getInventory()" in m.group(0) else "p") + ", this.empty_inventory);", s)
 if n != 3: raise RuntimeError(f"Expected 3 inventory restore blocks, got {n}")
 
 # Restore player state only *after* clearing event-added potion effects.
